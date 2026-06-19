@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>
+body { margin:0; background:#111; color:#fff; font-family:-apple-system,sans-serif; padding:40px 20px; text-align:center }
+button { width:100%; max-width:300px; height:52px; border:none; border-radius:14px; background:#5A66E8; color:#fff; font-size:16px; font-weight:600; cursor:pointer; margin:10px 0 }
+.m { margin-top:16px; font-size:18px; min-height:30px }
+.e { color:#FF6B7E; font-size:13px; min-height:18px }
+</style>
+</head>
+<body>
+<div class="m" id="status">...</div>
+<div class="m" id="phone" style="font-size:24px;font-weight:700"></div>
+<div class="e" id="err"></div>
+<button onclick="doTest()" id="btn">Request Phone</button>
+
+<script>
+var tg = null;
+try {
+  if (window.Telegram && window.Telegram.WebApp) {
+    tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+  }
+} catch(e) {}
+
+function log(s) { document.getElementById("status").textContent = s; }
+function err(s) { document.getElementById("err").textContent = s; }
+
+function doTest() {
+  if (!tg) { err("No Telegram WebApp"); return; }
+  document.getElementById("btn").disabled = true;
+  log("Requesting phone...");
+
+  // Method 1: event-based
+  try {
+    tg.onEvent("contactRequested", function(e) {
+      log("EVENT: " + JSON.stringify(e));
+      if (e && e.status === "sent") {
+        setTimeout(function() {
+          log("Requesting data via callback...");
+          try {
+            tg.requestContact(function(ok, d) {
+              log("CALLBACK: ok=" + ok + " data=" + JSON.stringify(d));
+              if (ok && d && d.phone_number) {
+                document.getElementById("phone").textContent = d.phone_number;
+              }
+            });
+          } catch(e2) { err("Callback error: " + e2.message); }
+        }, 300);
+      }
+    });
+  } catch(e) { err("onEvent failed: " + e.message); }
+
+  // Trigger
+  setTimeout(function() {
+    try {
+      tg.requestContact();
+      log("Request sent");
+    } catch(e) { err("requestContact failed: " + e.message); }
+  }, 200);
+}
+</script>
+</body>
+</html>
