@@ -4,61 +4,72 @@
 <style>
 body { margin:0; background:#111; color:#fff; font-family:-apple-system,sans-serif; padding:40px 20px; text-align:center }
 button { width:100%; max-width:300px; height:52px; border:none; border-radius:14px; background:#5A66E8; color:#fff; font-size:16px; font-weight:600; cursor:pointer; margin:10px 0 }
-.m { margin-top:16px; font-size:18px; min-height:30px }
+.m { margin-top:16px; font-size:18px; min-height:30px; word-break:break-all }
 .e { color:#FF6B7E; font-size:13px; min-height:18px }
 </style>
 </head>
 <body>
-<div class="m" id="status">...</div>
+<div class="m" id="status">Waiting for Telegram...</div>
 <div class="m" id="phone" style="font-size:24px;font-weight:700"></div>
 <div class="e" id="err"></div>
-<button onclick="doTest()" id="btn">Request Phone</button>
+<button onclick="doTest()" id="btn" style="display:none">Request Phone</button>
 
 <script>
 var tg = null;
-try {
+
+function waitForTg(retries) {
   if (window.Telegram && window.Telegram.WebApp) {
     tg = window.Telegram.WebApp;
-    tg.ready();
-    tg.expand();
+    try { tg.ready(); } catch(e){}
+    try { tg.expand(); } catch(e){}
+    document.getElementById("status").textContent = "Ready. Click button.";
+    document.getElementById("btn").style.display = "block";
+    return;
   }
-} catch(e) {}
+  retries = (retries || 0) + 1;
+  if (retries > 50) {
+    document.getElementById("err").textContent = "Timeout: no Telegram WebApp";
+    return;
+  }
+  setTimeout(function(){ waitForTg(retries); }, 100);
+}
+waitForTg();
 
 function log(s) { document.getElementById("status").textContent = s; }
 function err(s) { document.getElementById("err").textContent = s; }
 
 function doTest() {
-  if (!tg) { err("No Telegram WebApp"); return; }
+  if (!tg) { err("tg is null"); return; }
   document.getElementById("btn").disabled = true;
-  log("Requesting phone...");
+  log("Calling requestContact...");
 
-  // Method 1: event-based
   try {
     tg.onEvent("contactRequested", function(e) {
       log("EVENT: " + JSON.stringify(e));
       if (e && e.status === "sent") {
         setTimeout(function() {
           log("Requesting data via callback...");
-          try {
-            tg.requestContact(function(ok, d) {
-              log("CALLBACK: ok=" + ok + " data=" + JSON.stringify(d));
-              if (ok && d && d.phone_number) {
-                document.getElementById("phone").textContent = d.phone_number;
-              }
-            });
-          } catch(e2) { err("Callback error: " + e2.message); }
+          tg.requestContact(function(ok, d) {
+            log("CALLBACK: ok=" + ok + " phone=" + (d&&d.phone_number||"none"));
+            if (ok && d && d.phone_number) {
+              document.getElementById("phone").textContent = d.phone_number;
+            }
+          });
         }, 300);
       }
     });
-  } catch(e) { err("onEvent failed: " + e.message); }
 
-  // Trigger
-  setTimeout(function() {
-    try {
-      tg.requestContact();
-      log("Request sent");
-    } catch(e) { err("requestContact failed: " + e.message); }
-  }, 200);
+    setTimeout(function() {
+      tg.requestContact(function(ok, d) {
+        log("DIRECT CALLBACK: ok=" + ok + " phone=" + (d&&d.phone_number||"none"));
+        if (ok && d && d.phone_number) {
+          document.getElementById("phone").textContent = d.phone_number;
+        }
+      });
+    }, 200);
+  } catch(e) {
+    err("Error: " + e.message);
+  }
 }
 </script>
 </body>
